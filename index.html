@@ -5,7 +5,6 @@
   <title>Tender Document Package Builder</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <style> body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; } </style>
 </head>
 <body class="bg-slate-50 text-slate-800 p-6">
   <div class="max-w-5xl mx-auto space-y-6">
@@ -14,7 +13,7 @@
     <div class="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200">
       <div>
         <h1 id="app-title" class="text-2xl font-bold text-slate-900">Tender Document Package Builder</h1>
-        <p id="app-sub" class="text-slate-500 text-sm">AI DevFest 2026 Official Tool</p>
+        <p class="text-slate-500 text-sm">AI DevFest 2026 Official Tool</p>
       </div>
       <button id="lang-btn" onclick="toggleLanguage()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition">
         Switch to Bangla (বাংলা)
@@ -52,7 +51,7 @@
 
     <!-- 4. Generate & Download PDF -->
     <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4 text-center">
-      <button id="generate-btn" onclick="generatePackage()" disabled class="px-8 py-3 bg-slate-300 text-slate-600 cursor-not-allowed rounded-xl font-bold text-lg shadow transition">
+      <button id="generate-btn" onclick="generatePackage()" disabled class="px-8 py-3 bg-slate-300 text-slate-500 cursor-not-allowed rounded-xl font-bold text-lg shadow transition">
         Generate Final Package PDF
       </button>
       <p id="blocking-reason" class="text-red-500 text-sm font-medium mt-2"></p>
@@ -110,43 +109,39 @@
       renderRequirements();
     }
 
-    async function loadJSON(e) {
+    function loadJSON(e) {
       const file = e.target.files[0];
       if (!file) return;
-      try {
-        const text = await file.text();
-        tenderData = JSON.parse(text);
-
-        const tender = tenderData.tender || tenderData;
-        document.getElementById('t-id').innerText = tender.tender_id || 'N/A';
-        document.getElementById('t-title').innerText = tender.title || 'N/A';
-        document.getElementById('t-entity').innerText = tender.procuring_entity || 'N/A';
-        document.getElementById('t-bidder').innerText = tender.bidder || 'N/A';
-        document.getElementById('t-deadline').innerText = tender.submission_deadline || 'N/A';
-        
-        document.getElementById('tender-details').classList.remove('hidden');
-        renderRequirements();
-      } catch(err) {
-        alert("Invalid requirements.json file format!");
-      }
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          tenderData = JSON.parse(evt.target.result);
+          const tender = tenderData.tender || tenderData;
+          document.getElementById('t-id').innerText = tender.tender_id || 'N/A';
+          document.getElementById('t-title').innerText = tender.title || 'N/A';
+          document.getElementById('t-entity').innerText = tender.procuring_entity || 'N/A';
+          document.getElementById('t-bidder').innerText = tender.bidder || 'N/A';
+          document.getElementById('t-deadline').innerText = tender.submission_deadline || 'N/A';
+          
+          document.getElementById('tender-details').classList.remove('hidden');
+          renderRequirements();
+        } catch(err) {
+          alert("Error parsing JSON file!");
+        }
+      };
+      reader.readAsText(file);
     }
 
     async function uploadPDFs(e) {
       const files = Array.from(e.target.files);
       for (let f of files) {
-        if (!f.name.toLowerCase().endsWith('.pdf')) {
-          alert(`File "${f.name}" is not a PDF! Rejected.`);
-          continue;
-        }
+        if (!f.name.toLowerCase().endsWith('.pdf')) continue;
         const arrayBuffer = await f.arrayBuffer();
         let pageCount = 1;
         try {
           const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
           pageCount = pdfDoc.getPageCount();
-        } catch(err) {
-          alert(`Corrupted or encrypted PDF: ${f.name}`);
-          continue;
-        }
+        } catch(err) {}
 
         const fileId = 'f_' + Math.random().toString(36).substr(2, 9);
         uploadedFiles.push({
@@ -158,28 +153,6 @@
           size: f.size
         });
       }
-      checkDuplicates();
-      renderUploadedFiles();
-      renderRequirements();
-    }
-
-    function checkDuplicates() {
-      for (let i = 0; i < uploadedFiles.length; i++) {
-        uploadedFiles[i].isDuplicate = false;
-        for (let j = 0; j < uploadedFiles.length; j++) {
-          if (i !== j && uploadedFiles[i].size === uploadedFiles[j].size && uploadedFiles[i].name === uploadedFiles[j].name) {
-            uploadedFiles[i].isDuplicate = true;
-          }
-        }
-      }
-    }
-
-    function removeFile(id) {
-      uploadedFiles = uploadedFiles.filter(f => f.id !== id);
-      for (let reqId in matches) {
-        if (matches[reqId] === id) delete matches[reqId];
-      }
-      checkDuplicates();
       renderUploadedFiles();
       renderRequirements();
     }
@@ -189,16 +162,24 @@
       list.innerHTML = '';
       uploadedFiles.forEach(f => {
         list.innerHTML += `
-          <div class="flex justify-between items-center bg-slate-100 p-3 rounded-lg text-sm border">
+          <div class="flex justify-between items-center bg-slate-100 p-2 px-3 rounded text-sm border">
             <div>
-              <span class="font-semibold text-slate-800">${f.name}</span>
+              <span class="font-semibold">${f.name}</span>
               <span class="text-slate-500 ml-2">(${f.pages} pages)</span>
-              ${f.isDuplicate ? '<span class="ml-2 bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded font-bold">DUPLICATE</span>' : ''}
             </div>
             <button onclick="removeFile('${f.id}')" class="text-red-500 font-bold hover:underline">Remove</button>
           </div>
         `;
       });
+    }
+
+    function removeFile(id) {
+      uploadedFiles = uploadedFiles.filter(f => f.id !== id);
+      for (let reqId in matches) {
+        if (matches[reqId] === id) delete matches[reqId];
+      }
+      renderUploadedFiles();
+      renderRequirements();
     }
 
     function renderRequirements() {
@@ -213,7 +194,7 @@
       reqs.sort((a,b) => a.order - b.order);
 
       const tender = tenderData.tender || tenderData;
-      const deadline = tender.submission_deadline;
+      const deadline = tender.submission_deadline || '2026-12-31';
 
       reqs.forEach(req => {
         const reqTitle = currentLang === 'bn' && req.title_bn ? req.title_bn : req.title_en;
@@ -229,7 +210,7 @@
             status = texts[currentLang].statusMissing;
             statusClass = 'bg-red-100 text-red-700';
             isBlock = true;
-            blockingReasons.push(`${reqTitle}: Missing mandatory document`);
+            blockingReasons.push(`${reqTitle}: Missing document`);
           } else {
             status = texts[currentLang].statusNotProvided;
             statusClass = 'bg-slate-100 text-slate-600';
@@ -241,12 +222,12 @@
               status = texts[currentLang].statusExpiryNeeded;
               statusClass = 'bg-yellow-100 text-yellow-800';
               isBlock = true;
-              blockingReasons.push(`${reqTitle}: Expiry date missing`);
+              blockingReasons.push(`${reqTitle}: Expiry date required`);
             } else if (new Date(expDate) < new Date(deadline)) {
               status = texts[currentLang].statusExpired;
               statusClass = 'bg-red-100 text-red-700';
               isBlock = true;
-              blockingReasons.push(`${reqTitle}: File expired before deadline`);
+              blockingReasons.push(`${reqTitle}: Document expired before deadline`);
             } else {
               status = texts[currentLang].statusOK;
               statusClass = 'bg-green-100 text-green-700';
@@ -314,7 +295,6 @@
 
     async function generatePackage() {
       const mergedPdf = await PDFLib.PDFDocument.create();
-      
       const coverPage = mergedPdf.addPage([595.28, 841.89]);
       const { width, height } = coverPage.getSize();
       
