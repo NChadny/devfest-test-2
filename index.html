@@ -2,17 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tender Document Package Builder</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 p-6">
   <div class="max-w-5xl mx-auto space-y-6">
-    
+
     <div class="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200">
       <div>
         <h1 id="app-title" class="text-2xl font-bold text-slate-900">Tender Document Package Builder</h1>
-        <p class="text-slate-500 text-sm">AI DevFest Official Tool</p>
+        <p id="app-sub" class="text-slate-500 text-sm">AI DevFest Official Tool</p>
       </div>
       <button id="lang-btn" onclick="toggleLanguage()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition">
         Switch to Bangla (বাংলা)
@@ -23,20 +24,21 @@
     <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
       <h2 id="sec1-title" class="text-lg font-semibold border-b pb-2">1. Load Tender Requirements (requirements.json)</h2>
       <input type="file" id="json-input" accept=".json,application/json" onchange="loadJSON(event)" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" />
-      
+
       <div id="tender-details" class="hidden bg-slate-50 p-4 rounded-lg border text-sm space-y-1">
-        <p><strong>Tender ID:</strong> <span id="t-id"></span></p>
-        <p><strong>Title:</strong> <span id="t-title"></span></p>
-        <p><strong>Procuring Entity:</strong> <span id="t-entity"></span></p>
-        <p><strong>Bidder:</strong> <span id="t-bidder"></span></p>
-        <p><strong>Submission Deadline:</strong> <span id="t-deadline" class="font-bold text-red-600"></span></p>
+        <p><strong id="l-id">Tender ID:</strong> <span id="t-id"></span></p>
+        <p><strong id="l-title">Title:</strong> <span id="t-title"></span></p>
+        <p><strong id="l-entity">Procuring Entity:</strong> <span id="t-entity"></span></p>
+        <p><strong id="l-bidder">Bidder:</strong> <span id="t-bidder"></span></p>
+        <p><strong id="l-deadline">Submission Deadline:</strong> <span id="t-deadline" class="font-bold text-red-600"></span></p>
       </div>
     </div>
 
     <!-- 2. Upload PDFs -->
     <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
       <h2 id="sec2-title" class="text-lg font-semibold border-b pb-2">2. Upload PDF Documents</h2>
-      <input type="file" id="pdf-input" accept=".pdf" multiple onchange="uploadPDFs(event)" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" />
+      <input type="file" id="pdf-input" accept=".pdf,application/pdf" multiple onchange="uploadPDFs(event)" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" />
+      <div id="upload-msg" class="text-sm text-red-600 space-y-1"></div>
       <div id="file-list" class="space-y-2"></div>
     </div>
 
@@ -68,137 +70,236 @@
     const texts = {
       en: {
         title: "Tender Document Package Builder",
+        sub: "AI DevFest Official Tool",
         sec1: "1. Load Tender Requirements (requirements.json)",
         sec2: "2. Upload PDF Documents",
         sec3: "3. Requirements Matching & Verification Status",
         btnLang: "Switch to Bangla (বাংলা)",
         generateBtn: "Generate Final Package PDF",
+        emptyMsg: "Please load requirements.json first.",
         selectFile: "-- Select Matching Uploaded File --",
         expiryLabel: "Enter Expiry Date: ",
         statusMissing: "Missing",
         statusExpiryNeeded: "Expiry date needed",
         statusExpired: "Expired",
         statusNotProvided: "Not provided",
-        statusOK: "OK"
+        statusOK: "OK",
+        lId: "Tender ID:", lTitle: "Title:", lEntity: "Procuring Entity:", lBidder: "Bidder:", lDeadline: "Submission Deadline:",
+        remove: "Remove",
+        pages: "pages",
+        duplicate: "Duplicate",
+        usedElsewhere: " (already used / duplicate)",
+        dupAlert: "This file (or an identical duplicate) is already matched to another document.",
+        notPdf: "is not a PDF file. Rejected.",
+        damaged: "is damaged or password-protected. Rejected.",
+        max30: "Maximum 30 files allowed.",
+        max50: "total 50 MB limit exceeded.",
+        cannotGen: "Cannot generate: ",
+        rMissing: "Missing document",
+        rExpiryNeeded: "Expiry date required",
+        rExpired: "Document expired",
+        badJson: "Error loading JSON: "
       },
       bn: {
         title: "টেন্ডার ডকুমেন্ট প্যাকেজ বিল্ডার",
+        sub: "এআই ডেভফেস্ট অফিসিয়াল টুল",
         sec1: "১. টেন্ডার আবশ্যকতা ফাইল লোড করুন (requirements.json)",
         sec2: "২. পিডিএফ ফাইলসমূহ আপলোড করুন",
         sec3: "৩. ডকুমেন্ট মিলকরণ ও স্ট্যাটাস যাচাইকরণ",
         btnLang: "Switch to English",
         generateBtn: "চূড়ান্ত প্যাকেজ পিডিএফ তৈরি করুন",
+        emptyMsg: "প্রথমে requirements.json ফাইল লোড করুন।",
         selectFile: "-- আপলোডকৃত ফাইল নির্বাচন করুন --",
         expiryLabel: "মেয়াদোত্তীর্ণের তারিখ দিন: ",
-        statusMissing: "অনুপস্থিত (Missing)",
-        statusExpiryNeeded: "মেয়াদের তারিখ প্রয়োজন",
-        statusExpired: "মেয়াদোত্তীর্ণ (Expired)",
-        statusNotProvided: "প্রদান করা হয়নি",
-        statusOK: "ঠিক আছে (OK)"
+        statusMissing: "অনুপস্থিত",
+        statusExpiryNeeded: "মেয়াদের তারিখ প্রয়োজন",
+        statusExpired: "মেয়াদোত্তীর্ণ",
+        statusNotProvided: "প্রদান করা হয়নি",
+        statusOK: "ঠিক আছে",
+        lId: "টেন্ডার আইডি:", lTitle: "শিরোনাম:", lEntity: "ক্রয়কারী প্রতিষ্ঠান:", lBidder: "দরদাতা:", lDeadline: "জমার শেষ তারিখ:",
+        remove: "মুছুন",
+        pages: "পৃষ্ঠা",
+        duplicate: "ডুপ্লিকেট",
+        usedElsewhere: " (ইতিমধ্যে ব্যবহৃত / ডুপ্লিকেট)",
+        dupAlert: "এই ফাইল (বা এর অভিন্ন কপি) ইতিমধ্যে অন্য ডকুমেন্টে মেলানো হয়েছে।",
+        notPdf: "পিডিএফ ফাইল নয়। বাতিল করা হয়েছে।",
+        damaged: "নষ্ট বা পাসওয়ার্ড-সুরক্ষিত। বাতিল করা হয়েছে।",
+        max30: "সর্বোচ্চ ৩০টি ফাইল অনুমোদিত।",
+        max50: "মোট ৫০ MB সীমা অতিক্রম করেছে।",
+        cannotGen: "তৈরি করা যাবে না: ",
+        rMissing: "ডকুমেন্ট অনুপস্থিত",
+        rExpiryNeeded: "মেয়াদের তারিখ প্রয়োজন",
+        rExpired: "ডকুমেন্টের মেয়াদ শেষ",
+        badJson: "JSON লোড করতে সমস্যা: "
       }
     };
 
+    function T() { return texts[currentLang]; }
+
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function applyStaticTexts() {
+      const t = T();
+      document.documentElement.lang = currentLang;
+      document.getElementById('app-title').innerText = t.title;
+      document.getElementById('app-sub').innerText = t.sub;
+      document.getElementById('sec1-title').innerText = t.sec1;
+      document.getElementById('sec2-title').innerText = t.sec2;
+      document.getElementById('sec3-title').innerText = t.sec3;
+      document.getElementById('lang-btn').innerText = t.btnLang;
+      document.getElementById('l-id').innerText = t.lId;
+      document.getElementById('l-title').innerText = t.lTitle;
+      document.getElementById('l-entity').innerText = t.lEntity;
+      document.getElementById('l-bidder').innerText = t.lBidder;
+      document.getElementById('l-deadline').innerText = t.lDeadline;
+      const em = document.getElementById('empty-msg');
+      if (em) em.innerText = t.emptyMsg;
+    }
+
     function toggleLanguage() {
       currentLang = currentLang === 'en' ? 'bn' : 'en';
-      document.getElementById('app-title').innerText = texts[currentLang].title;
-      document.getElementById('sec1-title').innerText = texts[currentLang].sec1;
-      document.getElementById('sec2-title').innerText = texts[currentLang].sec2;
-      document.getElementById('sec3-title').innerText = texts[currentLang].sec3;
-      document.getElementById('lang-btn').innerText = texts[currentLang].btnLang;
+      applyStaticTexts();
+      renderUploadedFiles();
       renderRequirements();
     }
 
     function loadJSON(e) {
       const file = e.target.files[0];
       if (!file) return;
-      
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        try {
-          const parsed = JSON.parse(evt.target.result);
-          tenderData = parsed.tender ? parsed : { tender: parsed, requirements: parsed.requirements || [] };
-          
-          if (!tenderData.requirements && Array.isArray(parsed)) {
-            tenderData = { tender: {}, requirements: parsed };
-          }
 
-          const tender = tenderData.tender || {};
+      const reader = new FileReader();
+      reader.onload = function (evt) {
+        try {
+          let text = String(evt.target.result).replace(/^\uFEFF/, '');
+          const parsed = JSON.parse(text);
+          if (!parsed.tender || !Array.isArray(parsed.requirements)) {
+            throw new Error('Invalid requirements.json format');
+          }
+          tenderData = parsed;
+          matches = {};
+          expiryDates = {};
+
+          const tender = tenderData.tender;
           document.getElementById('t-id').innerText = tender.tender_id || 'N/A';
           document.getElementById('t-title').innerText = tender.title || 'N/A';
           document.getElementById('t-entity').innerText = tender.procuring_entity || 'N/A';
           document.getElementById('t-bidder').innerText = tender.bidder || 'N/A';
           document.getElementById('t-deadline').innerText = tender.submission_deadline || 'N/A';
-          
+
           document.getElementById('tender-details').classList.remove('hidden');
           renderRequirements();
-        } catch(err) {
-          alert("Error loading JSON: " + err.message);
+        } catch (err) {
+          alert(T().badJson + err.message);
         }
       };
       reader.readAsText(file);
     }
 
+    async function sha256(buf) {
+      const h = await crypto.subtle.digest('SHA-256', buf);
+      return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     async function uploadPDFs(e) {
       const files = Array.from(e.target.files);
-      for (let f of files) {
-        if (!f.name.toLowerCase().endsWith('.pdf')) continue;
-        const arrayBuffer = await f.arrayBuffer();
-        let pageCount = 1;
-        try {
-          const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-          pageCount = pdfDoc.getPageCount();
-        } catch(err) {}
+      const msgs = [];
+      let totalSize = uploadedFiles.reduce((s, f) => s + f.bytes.byteLength, 0);
 
-        const fileId = 'f_' + Math.random().toString(36).substr(2, 9);
+      for (const f of files) {
+        if (uploadedFiles.length >= 30) { msgs.push(T().max30); break; }
+
+        const buf = await f.arrayBuffer();
+        const head = new TextDecoder().decode(new Uint8Array(buf.slice(0, 5)));
+        if (!f.name.toLowerCase().endsWith('.pdf') || head !== '%PDF-') {
+          msgs.push(`❌ "${f.name}" ${T().notPdf}`);
+          continue;
+        }
+        if (totalSize + buf.byteLength > 50 * 1024 * 1024) {
+          msgs.push(`❌ "${f.name}": ${T().max50}`);
+          continue;
+        }
+
+        let pageCount;
+        try {
+          pageCount = (await PDFLib.PDFDocument.load(buf)).getPageCount();
+        } catch (err) {
+          msgs.push(`❌ "${f.name}" ${T().damaged}`);
+          continue;
+        }
+
+        totalSize += buf.byteLength;
         uploadedFiles.push({
-          id: fileId,
+          id: 'f_' + Math.random().toString(36).substr(2, 9),
           name: f.name,
-          bytes: arrayBuffer,
-          pages: pageCount
+          bytes: buf,
+          pages: pageCount,
+          hash: await sha256(buf)
         });
       }
+
+      e.target.value = '';
+      const box = document.getElementById('upload-msg');
+      box.innerHTML = msgs.map(m => `<p>${esc(m)}</p>`).join('');
       renderUploadedFiles();
       renderRequirements();
     }
 
     function renderUploadedFiles() {
       const list = document.getElementById('file-list');
-      list.innerHTML = '';
+      let html = '';
       uploadedFiles.forEach(f => {
-        list.innerHTML += `
+        const isDup = uploadedFiles.some(o => o.id !== f.id && o.hash === f.hash);
+        html += `
           <div class="flex justify-between items-center bg-slate-100 p-2 px-3 rounded text-sm border">
             <div>
-              <span class="font-semibold">${f.name}</span>
-              <span class="text-slate-500 ml-2">(${f.pages} pages)</span>
+              <span class="font-semibold">${esc(f.name)}</span>
+              <span class="text-slate-500 ml-2">(${f.pages} ${T().pages})</span>
+              ${isDup ? `<span class="ml-2 px-2 py-0.5 rounded bg-orange-100 text-orange-700 text-xs font-bold">${T().duplicate}</span>` : ''}
             </div>
-            <button onclick="removeFile('${f.id}')" class="text-red-500 font-bold hover:underline">Remove</button>
+            <button onclick="removeFile('${f.id}')" class="text-red-500 font-bold hover:underline">${T().remove}</button>
           </div>
         `;
       });
+      list.innerHTML = html;
     }
 
     function removeFile(id) {
       uploadedFiles = uploadedFiles.filter(f => f.id !== id);
-      for (let reqId in matches) {
+      for (const reqId in matches) {
         if (matches[reqId] === id) delete matches[reqId];
       }
       renderUploadedFiles();
       renderRequirements();
     }
 
+    function isUsedElsewhere(file, reqId) {
+      return Object.entries(matches).some(([rid, fid]) => {
+        if (rid === reqId || !fid) return false;
+        const other = uploadedFiles.find(x => x.id === fid);
+        return other && (other.id === file.id || other.hash === file.hash);
+      });
+    }
+
+    function sortedReqs() {
+      return [...(tenderData.requirements || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+    }
+
     function renderRequirements() {
       if (!tenderData || !tenderData.requirements) return;
       const container = document.getElementById('req-list');
-      container.innerHTML = '';
+      let html = '';
 
       let hasBlocking = false;
       let blockingReasons = [];
 
-      const reqs = tenderData.requirements;
-      reqs.sort((a,b) => (a.order || 0) - (b.order || 0));
-
+      const reqs = sortedReqs();
       const tender = tenderData.tender || {};
-      const deadline = tender.submission_deadline || '2026-12-31';
+      const deadline = tender.submission_deadline || '';
+      const t = T();
 
       reqs.forEach((req, idx) => {
         const reqId = req.id || 'req_' + idx;
@@ -212,61 +313,60 @@
 
         if (!matchedFile) {
           if (req.mandatory) {
-            status = texts[currentLang].statusMissing;
+            status = t.statusMissing;
             statusClass = 'bg-red-100 text-red-700';
             isBlock = true;
-            blockingReasons.push(`${reqTitle}: Missing document`);
+            blockingReasons.push(`${reqTitle}: ${t.rMissing}`);
           } else {
-            status = texts[currentLang].statusNotProvided;
-            statusClass = 'bg-slate-100 text-slate-600';
+            status = t.statusNotProvided;
+            statusClass = 'bg-slate-200 text-slate-600';
           }
-        } else {
-          if (req.has_expiry) {
-            const expDate = expiryDates[reqId];
-            if (!expDate) {
-              status = texts[currentLang].statusExpiryNeeded;
-              statusClass = 'bg-yellow-100 text-yellow-800';
-              isBlock = true;
-              blockingReasons.push(`${reqTitle}: Expiry date required`);
-            } else if (new Date(expDate) < new Date(deadline)) {
-              status = texts[currentLang].statusExpired;
-              statusClass = 'bg-red-100 text-red-700';
-              isBlock = true;
-              blockingReasons.push(`${reqTitle}: Document expired`);
-            } else {
-              status = texts[currentLang].statusOK;
-              statusClass = 'bg-green-100 text-green-700';
-            }
+        } else if (req.has_expiry) {
+          const expDate = expiryDates[reqId];
+          if (!expDate) {
+            status = t.statusExpiryNeeded;
+            statusClass = 'bg-yellow-100 text-yellow-800';
+            isBlock = true;
+            blockingReasons.push(`${reqTitle}: ${t.rExpiryNeeded}`);
+          } else if (expDate < deadline) {
+            status = t.statusExpired;
+            statusClass = 'bg-red-100 text-red-700';
+            isBlock = true;
+            blockingReasons.push(`${reqTitle}: ${t.rExpired}`);
           } else {
-            status = texts[currentLang].statusOK;
+            status = t.statusOK;
             statusClass = 'bg-green-100 text-green-700';
           }
+        } else {
+          status = t.statusOK;
+          statusClass = 'bg-green-100 text-green-700';
         }
 
         if (isBlock) hasBlocking = true;
 
-        let optionsHtml = `<option value="">${texts[currentLang].selectFile}</option>`;
+        let optionsHtml = `<option value="">${t.selectFile}</option>`;
         uploadedFiles.forEach(f => {
-          optionsHtml += `<option value="${f.id}" ${f.id === matchedFileId ? 'selected' : ''}>${f.name}</option>`;
+          const blocked = isUsedElsewhere(f, reqId);
+          optionsHtml += `<option value="${f.id}" ${f.id === matchedFileId ? 'selected' : ''} ${blocked ? 'disabled' : ''}>${esc(f.name)}${blocked ? t.usedElsewhere : ''}</option>`;
         });
 
-        container.innerHTML += `
+        html += `
           <div class="p-4 border rounded-lg bg-slate-50 space-y-3">
-            <div class="flex justify-between items-center">
-              <span class="font-bold text-slate-800">#${req.order || (idx + 1)} - ${reqTitle} ${req.mandatory ? '<span class="text-red-500">*</span>' : ''}</span>
-              <span class="px-3 py-1 rounded-full text-xs font-bold ${statusClass}">${status}</span>
+            <div class="flex justify-between items-center gap-2">
+              <span class="font-bold text-slate-800">#${req.order || (idx + 1)} - ${esc(reqTitle)} ${req.mandatory ? '<span class="text-red-500">*</span>' : ''}</span>
+              <span class="px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${statusClass}">${status}</span>
             </div>
-            
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <select onchange="matchFile('${reqId}', this.value)" class="w-full text-sm border p-2 rounded bg-white">
+                <select onchange="matchFile('${esc(reqId)}', this.value)" class="w-full text-sm border p-2 rounded bg-white">
                   ${optionsHtml}
                 </select>
               </div>
               ${req.has_expiry && matchedFile ? `
                 <div class="flex items-center space-x-2 text-sm">
-                  <label>${texts[currentLang].expiryLabel}</label>
-                  <input type="date" value="${expiryDates[reqId] \vert{}\vert{} ''}" onchange="setExpiry('${reqId}', this.value)" class="border p-1 rounded bg-white" />
+                  <label>${t.expiryLabel}</label>
+                  <input type="date" value="${esc(expiryDates[reqId] || '')}" onchange="setExpiry('${esc(reqId)}', this.value)" class="border p-1 rounded bg-white" />
                 </div>
               ` : ''}
             </div>
@@ -274,13 +374,18 @@
         `;
       });
 
+      container.innerHTML = html;
+
       const genBtn = document.getElementById('generate-btn');
       const reasonTxt = document.getElementById('blocking-reason');
+      genBtn.innerText = t.generateBtn;
 
       if (hasBlocking || reqs.length === 0) {
         genBtn.disabled = true;
         genBtn.className = "px-8 py-3 bg-slate-300 text-slate-500 cursor-not-allowed rounded-xl font-bold text-lg shadow";
-        reasonTxt.innerText = blockingReasons.length > 0 ? "Cannot Generate: " + blockingReasons[0] : "";
+        reasonTxt.innerHTML = blockingReasons.length > 0
+          ? esc(t.cannotGen) + '<br>' + blockingReasons.map(esc).join('<br>')
+          : '';
       } else {
         genBtn.disabled = false;
         genBtn.className = "px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer rounded-xl font-bold text-lg shadow transition";
@@ -289,7 +394,16 @@
     }
 
     function matchFile(reqId, fileId) {
-      matches[reqId] = fileId;
+      if (!fileId) {
+        delete matches[reqId];
+      } else {
+        const f = uploadedFiles.find(x => x.id === fileId);
+        if (f && isUsedElsewhere(f, reqId)) {
+          alert(T().dupAlert);
+        } else {
+          matches[reqId] = fileId;
+        }
+      }
       renderRequirements();
     }
 
@@ -298,72 +412,100 @@
       renderRequirements();
     }
 
-    async function generatePackage() {
-      const mergedPdf = await PDFLib.PDFDocument.create();
-      const coverPage = mergedPdf.addPage([595.28, 841.89]);
-      const { height } = coverPage.getSize();
-      
-      const tender = tenderData.tender || {};
-      const tId = tender.tender_id || 'T-2026';
-      const tTitle = tender.title || 'Tender Package';
-      const tEntity = tender.procuring_entity || 'Entity';
-      const tBidder = tender.bidder || 'Bidder';
-      const tDeadline = tender.submission_deadline || '';
-      const today = new Date().toISOString().split('T')[0];
-
-      coverPage.drawText(`TENDER DOCUMENT PACKAGE`, { x: 50, y: height - 80, size: 20 });
-      coverPage.drawText(`Tender ID: ${tId}`, { x: 50, y: height - 120, size: 12 });
-      coverPage.drawText(`Title: ${tTitle}`, { x: 50, y: height - 140, size: 12 });
-      coverPage.drawText(`Procuring Entity: ${tEntity}`, { x: 50, y: height - 160, size: 12 });
-      coverPage.drawText(`Bidder Name: ${tBidder}`, { x: 50, y: height - 180, size: 12 });
-      coverPage.drawText(`Submission Deadline: ${tDeadline}`, { x: 50, y: height - 200, size: 12 });
-      coverPage.drawText(`Generated Date: ${today}`, { x: 50, y: height - 220, size: 12 });
-
-      coverPage.drawText(`Included Documents List:`, { x: 50, y: height - 270, size: 14 });
-
-      let yPos = height - 300;
-      const reqs = tenderData.requirements || [];
-
-      reqs.forEach((req, idx) => {
-        const reqId = req.id || 'req_' + idx;
-        if (matches[reqId]) {
-          coverPage.drawText(`${req.order || (idx + 1)}. ${req.title_en || req.title}`, { x: 70, y: yPos, size: 11 });
-          yPos -= 20;
-        }
-      });
-
-      for (let idx = 0; idx < reqs.length; idx++) {
-        const req = reqs[idx];
-        const reqId = req.id || 'req_' + idx;
-        const fileId = matches[reqId];
-        if (!fileId) continue;
-        const matchedObj = uploadedFiles.find(f => f.id === fileId);
-        if (!matchedObj) continue;
-
-        const doc = await PDFLib.PDFDocument.load(matchedObj.bytes);
-        const copiedPages = await mergedPdf.copyPages(doc, doc.getPageIndices());
-        copiedPages.forEach(p => mergedPdf.addPage(p));
-      }
-
-      const totalPages = mergedPdf.getPageCount();
-      const pages = mergedPdf.getPages();
-      
-      for (let i = 0; i < totalPages; i++) {
-        const page = pages[i];
-        page.drawText(`${tId} | Page ${i + 1} of ${totalPages}`, {
-          x: 50,
-          y: 20,
-          size: 9
-        });
-      }
-
-      const pdfBytes = await mergedPdf.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `${tId}_Package.pdf`;
-      link.click();
+    // Keep only characters the standard PDF font can draw
+    function safe(s) {
+      return String(s == null ? '' : s).replace(/[^\x20-\x7E\u00A0-\u00FF]/g, '?');
     }
+
+    async function generatePackage() {
+      try {
+        const mergedPdf = await PDFLib.PDFDocument.create();
+        const font = await mergedPdf.embedFont(PDFLib.StandardFonts.Helvetica);
+        const bold = await mergedPdf.embedFont(PDFLib.StandardFonts.HelveticaBold);
+
+        const coverPage = mergedPdf.addPage([595.28, 841.89]);
+        const { height } = coverPage.getSize();
+
+        const tender = tenderData.tender || {};
+        const tId = tender.tender_id || 'T-2026';
+        const tTitle = tender.title || 'Tender Package';
+        const tEntity = tender.procuring_entity || '';
+        const tBidder = tender.bidder || '';
+        const tDeadline = tender.submission_deadline || '';
+        const today = new Date().toISOString().split('T')[0];
+
+        coverPage.drawText('TENDER DOCUMENT PACKAGE', { x: 50, y: height - 80, size: 20, font: bold });
+        const rows = [
+          ['Tender ID', tId],
+          ['Tender Title', tTitle],
+          ['Procuring Entity', tEntity],
+          ['Bidder Name', tBidder],
+          ['Submission Deadline', tDeadline],
+          ['Package Date', today]
+        ];
+        let y = height - 125;
+        rows.forEach(([k, v]) => {
+          coverPage.drawText(safe(k) + ':', { x: 50, y, size: 12, font: bold });
+          coverPage.drawText(safe(v), { x: 190, y, size: 12, font });
+          y -= 22;
+        });
+
+        y -= 25;
+        coverPage.drawText('Included Documents:', { x: 50, y, size: 14, font: bold });
+        y -= 24;
+
+        const reqs = sortedReqs();
+        let n = 0;
+        reqs.forEach((req, idx) => {
+          const reqId = req.id || 'req_' + idx;
+          if (matches[reqId]) {
+            n++;
+            coverPage.drawText(safe(`${n}. ${req.title_en || req.title || reqId}`), { x: 70, y, size: 11, font });
+            y -= 18;
+          }
+        });
+
+        for (let idx = 0; idx < reqs.length; idx++) {
+          const req = reqs[idx];
+          const reqId = req.id || 'req_' + idx;
+          const fileId = matches[reqId];
+          if (!fileId) continue;
+          const matchedObj = uploadedFiles.find(f => f.id === fileId);
+          if (!matchedObj) continue;
+
+          const doc = await PDFLib.PDFDocument.load(matchedObj.bytes);
+          const embedded = await mergedPdf.embedPdf(doc, doc.getPageIndices());
+          embedded.forEach(ep => {
+            // extra 30pt strip at the bottom so the footer never covers content
+            const p = mergedPdf.addPage([ep.width, ep.height + 30]);
+            p.drawPage(ep, { x: 0, y: 30 });
+          });
+        }
+
+        const totalPages = mergedPdf.getPageCount();
+        const pages = mergedPdf.getPages();
+        for (let i = 0; i < totalPages; i++) {
+          const page = pages[i];
+          const text = `${safe(tId)} | Page ${i + 1} of ${totalPages}`;
+          const w = font.widthOfTextAtSize(text, 10);
+          page.drawText(text, { x: (page.getWidth() - w) / 2, y: 10, size: 10, font });
+        }
+
+        const pdfBytes = await mergedPdf.save();
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${tId}_Package.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } catch (err) {
+        console.error(err);
+        alert('Could not generate the package: ' + err.message);
+      }
+    }
+
+    applyStaticTexts();
   </script>
 </body>
 </html>
