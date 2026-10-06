@@ -3,13 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>Tender Document Package Builder</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- PDF-Lib for merging PDFs -->
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-  </style>
+  <style> body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; } </style>
 </head>
 <body class="bg-slate-50 text-slate-800 p-6">
   <div class="max-w-5xl mx-auto space-y-6">
@@ -59,17 +55,17 @@
       <button id="generate-btn" onclick="generatePackage()" disabled class="px-8 py-3 bg-slate-300 text-slate-600 cursor-not-allowed rounded-xl font-bold text-lg shadow transition">
         Generate Final Package PDF
       </button>
-      <p id="blocking-reason" class="text-red-500 text-sm font-medium"></p>
+      <p id="blocking-reason" class="text-red-500 text-sm font-medium mt-2"></p>
     </div>
 
   </div>
 
   <script>
-    let currentLang = 'en'; // 'en' or 'bn'
+    let currentLang = 'en';
     let tenderData = null;
-    let uploadedFiles = []; // { id, name, file, pages, bytes, isDuplicate }
-    let matches = {}; // reqId -> fileId
-    let expiryDates = {}; // reqId -> dateString
+    let uploadedFiles = [];
+    let matches = {};
+    let expiryDates = {};
 
     const texts = {
       en: {
@@ -117,23 +113,28 @@
     async function loadJSON(e) {
       const file = e.target.files[0];
       if (!file) return;
-      const text = await file.text();
-      tenderData = JSON.parse(text);
-      
-      document.getElementById('t-id').innerText = tenderData.tender_id || tenderData.tender?.tender_id;
-      document.getElementById('t-title').innerText = tenderData.title || tenderData.tender?.title;
-      document.getElementById('t-entity').innerText = tenderData.procuring_entity || tenderData.tender?.procuring_entity;
-      document.getElementById('t-bidder').innerText = tenderData.bidder || tenderData.tender?.bidder;
-      document.getElementById('t-deadline').innerText = tenderData.submission_deadline || tenderData.tender?.submission_deadline;
-      
-      document.getElementById('tender-details').classList.remove('hidden');
-      renderRequirements();
+      try {
+        const text = await file.text();
+        tenderData = JSON.parse(text);
+
+        const tender = tenderData.tender || tenderData;
+        document.getElementById('t-id').innerText = tender.tender_id || 'N/A';
+        document.getElementById('t-title').innerText = tender.title || 'N/A';
+        document.getElementById('t-entity').innerText = tender.procuring_entity || 'N/A';
+        document.getElementById('t-bidder').innerText = tender.bidder || 'N/A';
+        document.getElementById('t-deadline').innerText = tender.submission_deadline || 'N/A';
+        
+        document.getElementById('tender-details').classList.remove('hidden');
+        renderRequirements();
+      } catch(err) {
+        alert("Invalid requirements.json file format!");
+      }
     }
 
     async function uploadPDFs(e) {
       const files = Array.from(e.target.files);
       for (let f of files) {
-        if (f.type !== 'application/pdf') {
+        if (!f.name.toLowerCase().endsWith('.pdf')) {
           alert(`File "${f.name}" is not a PDF! Rejected.`);
           continue;
         }
@@ -211,17 +212,17 @@
       const reqs = tenderData.requirements || [];
       reqs.sort((a,b) => a.order - b.order);
 
+      const tender = tenderData.tender || tenderData;
+      const deadline = tender.submission_deadline;
+
       reqs.forEach(req => {
         const reqTitle = currentLang === 'bn' && req.title_bn ? req.title_bn : req.title_en;
         const matchedFileId = matches[req.id] || '';
         const matchedFile = uploadedFiles.find(f => f.id === matchedFileId);
 
-        // Status logic
         let status = '';
         let statusClass = '';
         let isBlock = false;
-
-        const deadline = tenderData.submission_deadline || tenderData.tender?.submission_deadline;
 
         if (!matchedFile) {
           if (req.mandatory) {
@@ -258,7 +259,6 @@
 
         if (isBlock) hasBlocking = true;
 
-        // Select options
         let optionsHtml = `<option value="">${texts[currentLang].selectFile}</option>`;
         uploadedFiles.forEach(f => {
           optionsHtml += `<option value="${f.id}" ${f.id === matchedFileId ? 'selected' : ''}>${f.name}</option>`;
@@ -315,15 +315,15 @@
     async function generatePackage() {
       const mergedPdf = await PDFLib.PDFDocument.create();
       
-      // 1. Cover Page
-      const coverPage = mergedPdf.addPage([595.28, 841.89]); // A4
+      const coverPage = mergedPdf.addPage([595.28, 841.89]);
       const { width, height } = coverPage.getSize();
       
-      const tId = tenderData.tender_id || tenderData.tender?.tender_id;
-      const tTitle = tenderData.title || tenderData.tender?.title;
-      const tEntity = tenderData.procuring_entity || tenderData.tender?.procuring_entity;
-      const tBidder = tenderData.bidder || tenderData.tender?.bidder;
-      const tDeadline = tenderData.submission_deadline || tenderData.tender?.submission_deadline;
+      const tender = tenderData.tender || tenderData;
+      const tId = tender.tender_id || 'T-2026';
+      const tTitle = tender.title || 'Tender Package';
+      const tEntity = tender.procuring_entity || 'Entity';
+      const tBidder = tender.bidder || 'Bidder';
+      const tDeadline = tender.submission_deadline || '';
       const today = new Date().toISOString().split('T')[0];
 
       coverPage.drawText(`TENDER DOCUMENT PACKAGE`, { x: 50, y: height - 80, size: 20 });
@@ -347,7 +347,6 @@
         }
       });
 
-      // 2. Append PDF Pages
       for (let req of reqs) {
         const fileId = matches[req.id];
         if (!fileId) continue;
@@ -359,7 +358,6 @@
         copiedPages.forEach(p => mergedPdf.addPage(p));
       }
 
-      // 3. Add Footers
       const totalPages = mergedPdf.getPageCount();
       const pages = mergedPdf.getPages();
       
@@ -372,7 +370,6 @@
         });
       }
 
-      // Save and Download
       const pdfBytes = await mergedPdf.save();
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const link = document.createElement('a');
