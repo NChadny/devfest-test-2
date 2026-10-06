@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tender Document Package Builder</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PDF-Lib for merging PDFs -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6">
+  <div class="max-w-5xl mx-auto space-y-6">
+    
+    <!-- Top Header & Language Switcher -->
+    <div class="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <div>
+        <h1 id="app-title" class="text-2xl font-bold text-slate-900">Tender Document Package Builder</h1>
+        <p id="app-sub" class="text-slate-500 text-sm">AI DevFest 2026 Official Tool</p>
+      </div>
+      <button id="lang-btn" onclick="toggleLanguage()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition">
+        Switch to Bangla (বাংলা)
+      </button>
+    </div>
+
+    <!-- 1. Load requirements.json -->
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+      <h2 id="sec1-title" class="text-lg font-semibold border-b pb-2">1. Load Tender Requirements (requirements.json)</h2>
+      <input type="file" id="json-input" accept=".json" onchange="loadJSON(event)" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" />
+      
+      <div id="tender-details" class="hidden bg-slate-50 p-4 rounded-lg border text-sm space-y-1">
+        <p><strong>Tender ID:</strong> <span id="t-id"></span></p>
+        <p><strong>Title:</strong> <span id="t-title"></span></p>
+        <p><strong>Procuring Entity:</strong> <span id="t-entity"></span></p>
+        <p><strong>Bidder:</strong> <span id="t-bidder"></span></p>
+        <p><strong>Submission Deadline:</strong> <span id="t-deadline" class="font-bold text-red-600"></span></p>
+      </div>
+    </div>
+
+    <!-- 2. Upload PDFs -->
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+      <h2 id="sec2-title" class="text-lg font-semibold border-b pb-2">2. Upload PDF Documents</h2>
+      <input type="file" id="pdf-input" accept=".pdf" multiple onchange="uploadPDFs(event)" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" />
+      <div id="file-list" class="space-y-2"></div>
+    </div>
+
+    <!-- 3. Requirements & Matching Checklist -->
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+      <h2 id="sec3-title" class="text-lg font-semibold border-b pb-2">3. Requirements Matching & Verification Status</h2>
+      <div id="req-list" class="space-y-4">
+        <p class="text-slate-400 text-sm">Please load requirements.json first.</p>
+      </div>
+    </div>
+
+    <!-- 4. Generate & Download PDF -->
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4 text-center">
+      <button id="generate-btn" onclick="generatePackage()" disabled class="px-8 py-3 bg-slate-300 text-slate-600 cursor-not-allowed rounded-xl font-bold text-lg shadow transition">
+        Generate Final Package PDF
+      </button>
+      <p id="blocking-reason" class="text-red-500 text-sm font-medium"></p>
+    </div>
+
+  </div>
+
+  <script>
+    let currentLang = 'en'; // 'en' or 'bn'
+    let tenderData = null;
+    let uploadedFiles = []; // { id, name, file, pages, bytes, isDuplicate }
+    let matches = {}; // reqId -> fileId
+    let expiryDates = {}; // reqId -> dateString
+
+    const texts = {
+      en: {
+        title: "Tender Document Package Builder",
+        sec1: "1. Load Tender Requirements (requirements.json)",
+        sec2: "2. Upload PDF Documents",
+        sec3: "3. Requirements Matching & Verification Status",
+        btnLang: "Switch to Bangla (বাংলা)",
+        generateBtn: "Generate Final Package PDF",
+        selectFile: "-- Select Matching Uploaded File --",
+        expiryLabel: "Enter Expiry Date: ",
+        statusMissing: "Missing",
+        statusExpiryNeeded: "Expiry date needed",
+        statusExpired: "Expired",
+        statusNotProvided: "Not provided",
+        statusOK: "OK"
+      },
+      bn: {
+        title: "টেন্ডার ডকুমেন্ট প্যাকেজ বিল্ডার",
+        sec1: "১. টেন্ডার আবশ্যকতা ফাইল লোড করুন (requirements.json)",
+        sec2: "২. পিডিএফ ফাইলসমূহ আপলোড করুন",
+        sec3: "৩. ডকুমেন্ট মিলকরণ ও স্ট্যাটাস যাচাইকরণ",
+        btnLang: "Switch to English",
+        generateBtn: "চূড়ান্ত প্যাকেজ পিডিএফ তৈরি করুন",
+        selectFile: "-- আপলোডকৃত ফাইল নির্বাচন করুন --",
+        expiryLabel: "মেয়াদোত্তীর্ণের তারিখ দিন: ",
+        statusMissing: "অনুপস্থিত (Missing)",
+        statusExpiryNeeded: "মেয়াদের তারিখ প্রয়োজন",
+        statusExpired: "মেয়াদোত্তীর্ণ (Expired)",
+        statusNotProvided: "প্রদান করা হয়নি",
+        statusOK: "ঠিক আছে (OK)"
+      }
+    };
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'en' ? 'bn' : 'en';
+      document.getElementById('app-title').innerText = texts[currentLang].title;
+      document.getElementById('sec1-title').innerText = texts[currentLang].sec1;
+      document.getElementById('sec2-title').innerText = texts[currentLang].sec2;
+      document.getElementById('sec3-title').innerText = texts[currentLang].sec3;
+      document.getElementById('lang-btn').innerText = texts[currentLang].btnLang;
+      renderRequirements();
+    }
+
+    async function loadJSON(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const text = await file.text();
+      tenderData = JSON.parse(text);
+      
+      document.getElementById('t-id').innerText = tenderData.tender_id || tenderData.tender?.tender_id;
+      document.getElementById('t-title').innerText = tenderData.title || tenderData.tender?.title;
+      document.getElementById('t-entity').innerText = tenderData.procuring_entity || tenderData.tender?.procuring_entity;
+      document.getElementById('t-bidder').innerText = tenderData.bidder || tenderData.tender?.bidder;
+      document.getElementById('t-deadline').innerText = tenderData.submission_deadline || tenderData.tender?.submission_deadline;
+      
+      document.getElementById('tender-details').classList.remove('hidden');
+      renderRequirements();
+    }
+
+    async function uploadPDFs(e) {
+      const files = Array.from(e.target.files);
+      for (let f of files) {
+        if (f.type !== 'application/pdf') {
+          alert(`File "${f.name}" is not a PDF! Rejected.`);
+          continue;
+        }
+        const arrayBuffer = await f.arrayBuffer();
+        let pageCount = 1;
+        try {
+          const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+          pageCount = pdfDoc.getPageCount();
+        } catch(err) {
+          alert(`Corrupted or encrypted PDF: ${f.name}`);
+          continue;
+        }
+
+        const fileId = 'f_' + Math.random().toString(36).substr(2, 9);
+        uploadedFiles.push({
+          id: fileId,
+          name: f.name,
+          file: f,
+          bytes: arrayBuffer,
+          pages: pageCount,
+          size: f.size
+        });
+      }
+      checkDuplicates();
+      renderUploadedFiles();
+      renderRequirements();
+    }
+
+    function checkDuplicates() {
+      for (let i = 0; i < uploadedFiles.length; i++) {
+        uploadedFiles[i].isDuplicate = false;
+        for (let j = 0; j < uploadedFiles.length; j++) {
+          if (i !== j && uploadedFiles[i].size === uploadedFiles[j].size && uploadedFiles[i].name === uploadedFiles[j].name) {
+            uploadedFiles[i].isDuplicate = true;
+          }
+        }
+      }
+    }
+
+    function removeFile(id) {
+      uploadedFiles = uploadedFiles.filter(f => f.id !== id);
+      for (let reqId in matches) {
+        if (matches[reqId] === id) delete matches[reqId];
+      }
+      checkDuplicates();
+      renderUploadedFiles();
+      renderRequirements();
+    }
+
+    function renderUploadedFiles() {
+      const list = document.getElementById('file-list');
+      list.innerHTML = '';
+      uploadedFiles.forEach(f => {
+        list.innerHTML += `
+          <div class="flex justify-between items-center bg-slate-100 p-3 rounded-lg text-sm border">
+            <div>
+              <span class="font-semibold text-slate-800">${f.name}</span>
+              <span class="text-slate-500 ml-2">(${f.pages} pages)</span>
+              ${f.isDuplicate ? '<span class="ml-2 bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded font-bold">DUPLICATE</span>' : ''}
+            </div>
+            <button onclick="removeFile('${f.id}')" class="text-red-500 font-bold hover:underline">Remove</button>
+          </div>
+        `;
+      });
+    }
+
+    function renderRequirements() {
+      if (!tenderData) return;
+      const container = document.getElementById('req-list');
+      container.innerHTML = '';
+
+      let hasBlocking = false;
+      let blockingReasons = [];
+
+      const reqs = tenderData.requirements || [];
+      reqs.sort((a,b) => a.order - b.order);
+
+      reqs.forEach(req => {
+        const reqTitle = currentLang === 'bn' && req.title_bn ? req.title_bn : req.title_en;
+        const matchedFileId = matches[req.id] || '';
+        const matchedFile = uploadedFiles.find(f => f.id === matchedFileId);
+
+        // Status logic
+        let status = '';
+        let statusClass = '';
+        let isBlock = false;
+
+        const deadline = tenderData.submission_deadline || tenderData.tender?.submission_deadline;
+
+        if (!matchedFile) {
+          if (req.mandatory) {
+            status = texts[currentLang].statusMissing;
+            statusClass = 'bg-red-100 text-red-700';
+            isBlock = true;
+            blockingReasons.push(`${reqTitle}: Missing mandatory document`);
+          } else {
+            status = texts[currentLang].statusNotProvided;
+            statusClass = 'bg-slate-100 text-slate-600';
+          }
+        } else {
+          if (req.has_expiry) {
+            const expDate = expiryDates[req.id];
+            if (!expDate) {
+              status = texts[currentLang].statusExpiryNeeded;
+              statusClass = 'bg-yellow-100 text-yellow-800';
+              isBlock = true;
+              blockingReasons.push(`${reqTitle}: Expiry date missing`);
+            } else if (new Date(expDate) < new Date(deadline)) {
+              status = texts[currentLang].statusExpired;
+              statusClass = 'bg-red-100 text-red-700';
+              isBlock = true;
+              blockingReasons.push(`${reqTitle}: File expired before deadline`);
+            } else {
+              status = texts[currentLang].statusOK;
+              statusClass = 'bg-green-100 text-green-700';
+            }
+          } else {
+            status = texts[currentLang].statusOK;
+            statusClass = 'bg-green-100 text-green-700';
+          }
+        }
+
+        if (isBlock) hasBlocking = true;
+
+        // Select options
+        let optionsHtml = `<option value="">${texts[currentLang].selectFile}</option>`;
+        uploadedFiles.forEach(f => {
+          optionsHtml += `<option value="${f.id}" ${f.id === matchedFileId ? 'selected' : ''}>${f.name}</option>`;
+        });
+
+        container.innerHTML += `
+          <div class="p-4 border rounded-lg bg-slate-50 space-y-3">
+            <div class="flex justify-between items-center">
+              <span class="font-bold text-slate-800">#${req.order} - ${reqTitle} ${req.mandatory ? '<span class="text-red-500">*</span>' : ''}</span>
+              <span class="px-3 py-1 rounded-full text-xs font-bold ${statusClass}">${status}</span>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <select onchange="matchFile('${req.id}', this.value)" class="w-full text-sm border p-2 rounded bg-white">
+                  ${optionsHtml}
+                </select>
+              </div>
+              ${req.has_expiry && matchedFile ? `
+                <div class="flex items-center space-x-2 text-sm">
+                  <label>${texts[currentLang].expiryLabel}</label>
+                  <input type="date" value="${expiryDates[req.id] \vert{}\vert{} ''}" onchange="setExpiry('${req.id}', this.value)" class="border p-1 rounded bg-white" />
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      });
+
+      const genBtn = document.getElementById('generate-btn');
+      const reasonTxt = document.getElementById('blocking-reason');
+
+      if (hasBlocking || reqs.length === 0) {
+        genBtn.disabled = true;
+        genBtn.className = "px-8 py-3 bg-slate-300 text-slate-500 cursor-not-allowed rounded-xl font-bold text-lg shadow";
+        reasonTxt.innerText = blockingReasons.length > 0 ? "Cannot Generate: " + blockingReasons[0] : "";
+      } else {
+        genBtn.disabled = false;
+        genBtn.className = "px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer rounded-xl font-bold text-lg shadow transition";
+        reasonTxt.innerText = "";
+      }
+    }
+
+    function matchFile(reqId, fileId) {
+      matches[reqId] = fileId;
+      renderRequirements();
+    }
+
+    function setExpiry(reqId, date) {
+      expiryDates[reqId] = date;
+      renderRequirements();
+    }
+
+    async function generatePackage() {
+      const mergedPdf = await PDFLib.PDFDocument.create();
+      
+      // 1. Cover Page
+      const coverPage = mergedPdf.addPage([595.28, 841.89]); // A4
+      const { width, height } = coverPage.getSize();
+      
+      const tId = tenderData.tender_id || tenderData.tender?.tender_id;
+      const tTitle = tenderData.title || tenderData.tender?.title;
+      const tEntity = tenderData.procuring_entity || tenderData.tender?.procuring_entity;
+      const tBidder = tenderData.bidder || tenderData.tender?.bidder;
+      const tDeadline = tenderData.submission_deadline || tenderData.tender?.submission_deadline;
+      const today = new Date().toISOString().split('T')[0];
+
+      coverPage.drawText(`TENDER DOCUMENT PACKAGE`, { x: 50, y: height - 80, size: 20 });
+      coverPage.drawText(`Tender ID: ${tId}`, { x: 50, y: height - 120, size: 12 });
+      coverPage.drawText(`Title: ${tTitle}`, { x: 50, y: height - 140, size: 12 });
+      coverPage.drawText(`Procuring Entity: ${tEntity}`, { x: 50, y: height - 160, size: 12 });
+      coverPage.drawText(`Bidder Name: ${tBidder}`, { x: 50, y: height - 180, size: 12 });
+      coverPage.drawText(`Submission Deadline: ${tDeadline}`, { x: 50, y: height - 200, size: 12 });
+      coverPage.drawText(`Generated Date: ${today}`, { x: 50, y: height - 220, size: 12 });
+
+      coverPage.drawText(`Included Documents List:`, { x: 50, y: height - 270, size: 14 });
+
+      let yPos = height - 300;
+      const reqs = tenderData.requirements || [];
+      reqs.sort((a,b) => a.order - b.order);
+
+      reqs.forEach(req => {
+        if (matches[req.id]) {
+          coverPage.drawText(`${req.order}. ${req.title_en}`, { x: 70, y: yPos, size: 11 });
+          yPos -= 20;
+        }
+      });
+
+      // 2. Append PDF Pages
+      for (let req of reqs) {
+        const fileId = matches[req.id];
+        if (!fileId) continue;
+        const matchedObj = uploadedFiles.find(f => f.id === fileId);
+        if (!matchedObj) continue;
+
+        const doc = await PDFLib.PDFDocument.load(matchedObj.bytes);
+        const copiedPages = await mergedPdf.copyPages(doc, doc.getPageIndices());
+        copiedPages.forEach(p => mergedPdf.addPage(p));
+      }
+
+      // 3. Add Footers
+      const totalPages = mergedPdf.getPageCount();
+      const pages = mergedPdf.getPages();
+      
+      for (let i = 0; i < totalPages; i++) {
+        const page = pages[i];
+        page.drawText(`${tId} | Page ${i + 1} of ${totalPages}`, {
+          x: 50,
+          y: 20,
+          size: 9
+        });
+      }
+
+      // Save and Download
+      const pdfBytes = await mergedPdf.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${tId}_Package.pdf`;
+      link.click();
+    }
+  </script>
+</body>
+</html>
