@@ -9,21 +9,20 @@
 <body class="bg-slate-50 text-slate-800 p-6">
   <div class="max-w-5xl mx-auto space-y-6">
     
-    <!-- Top Header & Language Switcher -->
     <div class="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200">
       <div>
         <h1 id="app-title" class="text-2xl font-bold text-slate-900">Tender Document Package Builder</h1>
-        <p class="text-slate-500 text-sm">AI DevFest 2026 Official Tool</p>
+        <p class="text-slate-500 text-sm">AI DevFest Official Tool</p>
       </div>
       <button id="lang-btn" onclick="toggleLanguage()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition">
         Switch to Bangla (বাংলা)
       </button>
     </div>
 
-    <!-- 1. Load requirements.json -->
+    <!-- 1. Load JSON -->
     <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
       <h2 id="sec1-title" class="text-lg font-semibold border-b pb-2">1. Load Tender Requirements (requirements.json)</h2>
-      <input type="file" id="json-input" accept=".json" onchange="loadJSON(event)" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" />
+      <input type="file" id="json-input" accept=".json,application/json" onchange="loadJSON(event)" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer" />
       
       <div id="tender-details" class="hidden bg-slate-50 p-4 rounded-lg border text-sm space-y-1">
         <p><strong>Tender ID:</strong> <span id="t-id"></span></p>
@@ -41,15 +40,15 @@
       <div id="file-list" class="space-y-2"></div>
     </div>
 
-    <!-- 3. Requirements & Matching Checklist -->
+    <!-- 3. Verification Checklist -->
     <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
       <h2 id="sec3-title" class="text-lg font-semibold border-b pb-2">3. Requirements Matching & Verification Status</h2>
       <div id="req-list" class="space-y-4">
-        <p class="text-slate-400 text-sm">Please load requirements.json first.</p>
+        <p id="empty-msg" class="text-slate-400 text-sm">Please load requirements.json first.</p>
       </div>
     </div>
 
-    <!-- 4. Generate & Download PDF -->
+    <!-- 4. Generate -->
     <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4 text-center">
       <button id="generate-btn" onclick="generatePackage()" disabled class="px-8 py-3 bg-slate-300 text-slate-500 cursor-not-allowed rounded-xl font-bold text-lg shadow transition">
         Generate Final Package PDF
@@ -112,11 +111,18 @@
     function loadJSON(e) {
       const file = e.target.files[0];
       if (!file) return;
+      
       const reader = new FileReader();
       reader.onload = function(evt) {
         try {
-          tenderData = JSON.parse(evt.target.result);
-          const tender = tenderData.tender || tenderData;
+          const parsed = JSON.parse(evt.target.result);
+          tenderData = parsed.tender ? parsed : { tender: parsed, requirements: parsed.requirements || [] };
+          
+          if (!tenderData.requirements && Array.isArray(parsed)) {
+            tenderData = { tender: {}, requirements: parsed };
+          }
+
+          const tender = tenderData.tender || {};
           document.getElementById('t-id').innerText = tender.tender_id || 'N/A';
           document.getElementById('t-title').innerText = tender.title || 'N/A';
           document.getElementById('t-entity').innerText = tender.procuring_entity || 'N/A';
@@ -126,7 +132,7 @@
           document.getElementById('tender-details').classList.remove('hidden');
           renderRequirements();
         } catch(err) {
-          alert("Error parsing JSON file!");
+          alert("Error loading JSON: " + err.message);
         }
       };
       reader.readAsText(file);
@@ -147,10 +153,8 @@
         uploadedFiles.push({
           id: fileId,
           name: f.name,
-          file: f,
           bytes: arrayBuffer,
-          pages: pageCount,
-          size: f.size
+          pages: pageCount
         });
       }
       renderUploadedFiles();
@@ -183,22 +187,23 @@
     }
 
     function renderRequirements() {
-      if (!tenderData) return;
+      if (!tenderData || !tenderData.requirements) return;
       const container = document.getElementById('req-list');
       container.innerHTML = '';
 
       let hasBlocking = false;
       let blockingReasons = [];
 
-      const reqs = tenderData.requirements || [];
-      reqs.sort((a,b) => a.order - b.order);
+      const reqs = tenderData.requirements;
+      reqs.sort((a,b) => (a.order || 0) - (b.order || 0));
 
-      const tender = tenderData.tender || tenderData;
+      const tender = tenderData.tender || {};
       const deadline = tender.submission_deadline || '2026-12-31';
 
-      reqs.forEach(req => {
-        const reqTitle = currentLang === 'bn' && req.title_bn ? req.title_bn : req.title_en;
-        const matchedFileId = matches[req.id] || '';
+      reqs.forEach((req, idx) => {
+        const reqId = req.id || 'req_' + idx;
+        const reqTitle = currentLang === 'bn' && req.title_bn ? req.title_bn : (req.title_en || req.title || 'Requirement ' + (idx + 1));
+        const matchedFileId = matches[reqId] || '';
         const matchedFile = uploadedFiles.find(f => f.id === matchedFileId);
 
         let status = '';
@@ -217,7 +222,7 @@
           }
         } else {
           if (req.has_expiry) {
-            const expDate = expiryDates[req.id];
+            const expDate = expiryDates[reqId];
             if (!expDate) {
               status = texts[currentLang].statusExpiryNeeded;
               statusClass = 'bg-yellow-100 text-yellow-800';
@@ -227,7 +232,7 @@
               status = texts[currentLang].statusExpired;
               statusClass = 'bg-red-100 text-red-700';
               isBlock = true;
-              blockingReasons.push(`${reqTitle}: Document expired before deadline`);
+              blockingReasons.push(`${reqTitle}: Document expired`);
             } else {
               status = texts[currentLang].statusOK;
               statusClass = 'bg-green-100 text-green-700';
@@ -248,20 +253,20 @@
         container.innerHTML += `
           <div class="p-4 border rounded-lg bg-slate-50 space-y-3">
             <div class="flex justify-between items-center">
-              <span class="font-bold text-slate-800">#${req.order} - ${reqTitle} ${req.mandatory ? '<span class="text-red-500">*</span>' : ''}</span>
+              <span class="font-bold text-slate-800">#${req.order || (idx + 1)} - ${reqTitle} ${req.mandatory ? '<span class="text-red-500">*</span>' : ''}</span>
               <span class="px-3 py-1 rounded-full text-xs font-bold ${statusClass}">${status}</span>
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <select onchange="matchFile('${req.id}', this.value)" class="w-full text-sm border p-2 rounded bg-white">
+                <select onchange="matchFile('${reqId}', this.value)" class="w-full text-sm border p-2 rounded bg-white">
                   ${optionsHtml}
                 </select>
               </div>
               ${req.has_expiry && matchedFile ? `
                 <div class="flex items-center space-x-2 text-sm">
                   <label>${texts[currentLang].expiryLabel}</label>
-                  <input type="date" value="${expiryDates[req.id] \vert{}\vert{} ''}" onchange="setExpiry('${req.id}', this.value)" class="border p-1 rounded bg-white" />
+                  <input type="date" value="${expiryDates[reqId] \vert{}\vert{} ''}" onchange="setExpiry('${reqId}', this.value)" class="border p-1 rounded bg-white" />
                 </div>
               ` : ''}
             </div>
@@ -296,9 +301,9 @@
     async function generatePackage() {
       const mergedPdf = await PDFLib.PDFDocument.create();
       const coverPage = mergedPdf.addPage([595.28, 841.89]);
-      const { width, height } = coverPage.getSize();
+      const { height } = coverPage.getSize();
       
-      const tender = tenderData.tender || tenderData;
+      const tender = tenderData.tender || {};
       const tId = tender.tender_id || 'T-2026';
       const tTitle = tender.title || 'Tender Package';
       const tEntity = tender.procuring_entity || 'Entity';
@@ -318,17 +323,19 @@
 
       let yPos = height - 300;
       const reqs = tenderData.requirements || [];
-      reqs.sort((a,b) => a.order - b.order);
 
-      reqs.forEach(req => {
-        if (matches[req.id]) {
-          coverPage.drawText(`${req.order}. ${req.title_en}`, { x: 70, y: yPos, size: 11 });
+      reqs.forEach((req, idx) => {
+        const reqId = req.id || 'req_' + idx;
+        if (matches[reqId]) {
+          coverPage.drawText(`${req.order || (idx + 1)}. ${req.title_en || req.title}`, { x: 70, y: yPos, size: 11 });
           yPos -= 20;
         }
       });
 
-      for (let req of reqs) {
-        const fileId = matches[req.id];
+      for (let idx = 0; idx < reqs.length; idx++) {
+        const req = reqs[idx];
+        const reqId = req.id || 'req_' + idx;
+        const fileId = matches[reqId];
         if (!fileId) continue;
         const matchedObj = uploadedFiles.find(f => f.id === fileId);
         if (!matchedObj) continue;
